@@ -128,7 +128,7 @@ void application_init(void)
     twr_ds18b20_set_update_interval(&ds18b20, TEMPERATURE_UPDATE_INTERVAL);
 
     twr_radio_init(TWR_RADIO_MODE_NODE_SLEEPING);
-    twr_radio_pairing_request("1wire-thermometer", VERSION);
+    twr_radio_pairing_request("1wire-thermometer-ice", VERSION);
 
     twr_led_pulse(&led, 2000);
 }
