@@ -1,5 +1,4 @@
 #include <application.h>
-#include <at.h>
 
 #define DS18B20_PUB_NO_CHANGE_INTERVAL   (5 * 60 * 1000)
 #define DS18B20_PUB_VALUE_CHANGE         0.5f
@@ -128,7 +127,7 @@ void application_init(void)
     twr_ds18b20_set_update_interval(&ds18b20, TEMPERATURE_UPDATE_INTERVAL);
 
     twr_radio_init(TWR_RADIO_MODE_NODE_SLEEPING);
-    twr_radio_pairing_request("1wire-thermometer-ice", VERSION);
+    twr_radio_pairing_request("1wire-thermometer-ice", FW_VERSION);
 
     twr_led_pulse(&led, 2000);
 }
