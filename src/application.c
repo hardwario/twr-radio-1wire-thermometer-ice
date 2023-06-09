@@ -3,8 +3,12 @@
 #define DS18B20_PUB_NO_CHANGE_INTERVAL   (5 * 60 * 1000)
 #define DS18B20_PUB_VALUE_CHANGE         0.5f
 
+#define HUMIDITY_PUB_NO_CHANGE_INTERVAL   (5 * 60 * 1000)
+#define HUMIDITY_PUB_VALUE_CHANGE         15.0f
+
 #define TEMPERATURE_UPDATE_INTERVAL     (10 * 1000)
 #define BATTERY_UPDATE_INTERVAL         (5 * 60 * 1000)
+#define HUMIDITY_UPDATE_INTERVAL        (10 * 1000)
 
 #define RESET_SEND_SIGNAL_TIME (30 * 1000)
 
@@ -24,8 +28,14 @@ static twr_ds18b20_t ds18b20;
 float last_temperature;
 twr_tick_t temperature_next_pub;
 
+float last_humidity = 0;
+twr_tag_humidity_t humidity_tag;
+twr_tick_t humidity_next_pub;
+
 twr_scheduler_task_id_t reset_send_signal_task;
 twr_scheduler_task_id_t battery_measure_task_id;
+
+void send_measurements();
 
 void ds18b20_event_handler(twr_ds18b20_t *self, uint64_t device_address, twr_ds18b20_event_t event, void *event_param)
 {
@@ -42,6 +52,23 @@ void ds18b20_event_handler(twr_ds18b20_t *self, uint64_t device_address, twr_ds1
             }
         }
     }
+}
+
+void humidity_tag_event_handler(twr_tag_humidity_t *self, twr_tag_humidity_event_t event, void *event_param) {
+	if (event == TWR_TAG_HUMIDITY_EVENT_UPDATE)
+    {
+		float measured_humidity;
+		if (twr_tag_humidity_get_humidity_percentage(self, &measured_humidity))
+        {
+            twr_log_debug("HUMIDITY: %.2f", measured_humidity);
+			if ((fabs(measured_humidity - last_humidity) >= HUMIDITY_PUB_VALUE_CHANGE) || (humidity_next_pub < twr_scheduler_get_spin_tick()))
+            {
+                twr_radio_pub_humidity(TWR_TAG_HUMIDITY_I2C_ADDRESS_DEFAULT, &measured_humidity);
+                last_humidity = measured_humidity;
+                humidity_next_pub = twr_scheduler_get_spin_tick() + HUMIDITY_PUB_NO_CHANGE_INTERVAL;
+            }
+		}
+	}
 }
 
 void lis2_event_handler(twr_lis2dh12_t *self, twr_lis2dh12_event_t event, void *event_param)
@@ -85,7 +112,9 @@ void send_measurements()
         not_sended = false;
         special_alarm_count = 0;
         last_temperature = 0;
+        last_humidity = 0;
         twr_ds18b20_measure(&ds18b20);
+        twr_tag_humidity_measure(&humidity_tag);
         twr_module_battery_measure();
 
         twr_scheduler_plan_relative(reset_send_signal_task, RESET_SEND_SIGNAL_TIME);
@@ -125,6 +154,10 @@ void application_init(void)
     twr_ds18b20_init_single(&ds18b20, TWR_DS18B20_RESOLUTION_BITS_12);
     twr_ds18b20_set_event_handler(&ds18b20, ds18b20_event_handler, NULL);
     twr_ds18b20_set_update_interval(&ds18b20, TEMPERATURE_UPDATE_INTERVAL);
+
+    twr_tag_humidity_init(&humidity_tag, TWR_TAG_HUMIDITY_REVISION_R3, TWR_I2C_I2C0, TWR_TAG_HUMIDITY_I2C_ADDRESS_DEFAULT);
+	twr_tag_humidity_set_event_handler(&humidity_tag, humidity_tag_event_handler, NULL);
+	twr_tag_humidity_set_update_interval(&humidity_tag, HUMIDITY_UPDATE_INTERVAL);
 
     twr_radio_init(TWR_RADIO_MODE_NODE_SLEEPING);
     twr_radio_pairing_request("1wire-thermometer-ice", FW_VERSION);
